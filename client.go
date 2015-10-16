@@ -205,6 +205,18 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// RawCmd Sends a raw ftp command to the FTP server. Useful for things like SITE commands.
+func (c *Client) RawCmd(cmd string) (int, string, error) {
+	pconn, err := c.getIdleConn()
+	if err != nil {
+		return 0, "", err
+	}
+
+	defer c.returnConn(pconn)
+
+	return pconn.sendCommand(cmd)
+}
+
 // Log a debug message in the context of the client (i.e. not for a
 // particular connection).
 func (c *Client) debug(f string, args ...interface{}) {
