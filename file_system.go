@@ -125,7 +125,7 @@ func commandNotSupporterdError(err error) bool {
 // be used. You may have to set ServerLocation in your config to get (more)
 // accurate ModTimes in this case.
 func (c *Client) ReadDir(path string) ([]os.FileInfo, error) {
-	entries, err := c.dataStringList("MLSD %s", path)
+	entries, err := c.DataStringList("MLSD %s", path)
 
 	parser := parseMLST
 
@@ -134,7 +134,7 @@ func (c *Client) ReadDir(path string) ([]os.FileInfo, error) {
 			return nil, err
 		}
 
-		entries, err = c.dataStringList("LIST %s", path)
+		entries, err = c.DataStringList("LIST %s", path)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +170,7 @@ func (c *Client) Stat(path string) (os.FileInfo, error) {
 	lines, err := c.controlStringList("MLST %s", path)
 	if err != nil {
 		if commandNotSupporterdError(err) {
-			lines, err = c.dataStringList("LIST %s", path)
+			lines, err = c.DataStringList("LIST %s", path)
 			if err != nil {
 				return nil, err
 			}
@@ -222,7 +222,8 @@ func (c *Client) controlStringList(f string, args ...interface{}) ([]string, err
 	return strings.Split(msg, "\n"), nil
 }
 
-func (c *Client) dataStringList(f string, args ...interface{}) ([]string, error) {
+//DataStringList performs the provided list command against the FTP server and returns a slice of strings where each element represents a single row.
+func (c *Client) DataStringList(f string, args ...interface{}) ([]string, error) {
 	pconn, err := c.getIdleConn()
 	if err != nil {
 		return nil, err
