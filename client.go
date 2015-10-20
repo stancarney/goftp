@@ -127,6 +127,17 @@ type Config struct {
 	// server does not support "MLST"/"MLSD". Defaults to UTC.
 	ServerLocation *time.Location
 
+	// Enable "active" FTP data connections where the server connects to the client to
+	// establish data connections (does not work if client is behind NAT). If TLSConfig
+	// is specified, it will be used when listening for active connections.
+	ActiveTransfers bool
+
+	// Set the host:port to listen on for active data connections. If the host and/or
+	// port is empty, the local address/port of the control connection will be used. A
+	// port of 0 will listen on a random port. If not specified, the default behavior is
+	// ":0", i.e. listen on the local control connection host and a random port.
+	ActiveListenAddr string
+
 	// For testing convenience.
 	stubResponses map[string]stubResponse
 }
@@ -142,6 +153,7 @@ type Client struct {
 	numConnsPerHost map[string]int
 	allCons         map[int]*persistentConn
 	connIdx         int
+	rawConnIdx      int
 	mu              sync.Mutex
 	t0              time.Time
 	closed          bool
@@ -169,6 +181,10 @@ func newClient(config Config, hosts []string) *Client {
 
 	if config.ServerLocation == nil {
 		config.ServerLocation = time.UTC
+	}
+
+	if config.ActiveListenAddr == "" {
+		config.ActiveListenAddr = ":0"
 	}
 
 	return &Client{
@@ -328,6 +344,18 @@ func (c *Client) returnConn(pconn *persistentConn) {
 	c.freeConnCh <- pconn
 }
 
+// OpenRawConn opens a "raw" connection to the server which allows you to run any control
+// or data command you want. See the RawConn interface for more details. The RawConn will
+// not participate in the Client's pool (i.e. does not count against ConnectionsPerHost).
+func (c *Client) OpenRawConn() (RawConn, error) {
+	c.mu.Lock()
+	idx := c.rawConnIdx
+	host := c.hosts[idx%len(c.hosts)]
+	c.rawConnIdx++
+	c.mu.Unlock()
+	return c.openConn(-(idx + 1), host)
+}
+
 // Open and set up a control connection.
 func (c *Client) openConn(idx int, host string) (pconn *persistentConn, err error) {
 	pconn = &persistentConn{
@@ -403,7 +431,9 @@ func (c *Client) openConn(idx int, host string) (pconn *persistentConn, err erro
 		goto Error
 	}
 
-	c.allCons[idx] = pconn
+	if idx >= 0 {
+		c.allCons[idx] = pconn
+	}
 	return pconn, nil
 
 Error:
